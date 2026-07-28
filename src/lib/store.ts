@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, or, like, desc, asc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc } from "drizzle-orm";
 import { addMinutes, parseISO } from "date-fns";
 import { getDb } from "./db";
 import { ensureSchema } from "./migrate";
