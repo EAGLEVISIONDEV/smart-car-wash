@@ -7,17 +7,7 @@ import {
   updateBookingStatus,
 } from "@/lib/store";
 import { isValidRoPlate } from "@/lib/plates";
-
-function getSecret() {
-  return process.env.ADMIN_SECRET || "smart-admin-2026";
-}
-
-function authorized(req: Request) {
-  const key = getSecret();
-  const header = req.headers.get("x-admin-secret");
-  const cookie = req.headers.get("cookie") || "";
-  return header === key || cookie.includes(`scw_admin=${encodeURIComponent(key)}`) || cookie.includes(`scw_admin=${key}`);
-}
+import { isAdminAuthorized, unauthorized } from "@/lib/admin-auth";
 
 function todayLocal() {
   const t = new Date();
@@ -25,9 +15,7 @@ function todayLocal() {
 }
 
 export async function GET(req: Request) {
-  if (!authorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!isAdminAuthorized(req)) return unauthorized();
   try {
     const day =
       new URL(req.url).searchParams.get("day") || todayLocal();
@@ -63,9 +51,7 @@ const patchSchema = z.object({
 });
 
 export async function PATCH(req: Request) {
-  if (!authorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!isAdminAuthorized(req)) return unauthorized();
   try {
     const parsed = patchSchema.safeParse(await req.json());
     if (!parsed.success) {
@@ -97,9 +83,7 @@ const walkInSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  if (!authorized(req)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  if (!isAdminAuthorized(req)) return unauthorized();
   try {
     const parsed = walkInSchema.safeParse(await req.json());
     if (!parsed.success) {

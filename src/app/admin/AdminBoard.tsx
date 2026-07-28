@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Booking, BookingStatus } from "@/lib/booking";
 import type { BoardStats } from "@/lib/booking";
-import { packages, type PackageId, business } from "@/lib/data";
+import { packages, type PackageId } from "@/lib/data";
 import { formatPlateDisplay, isValidRoPlate, normalizePlate } from "@/lib/plates";
+import { useAdmin } from "@/components/admin/AdminShell";
 
 const FLOW: BookingStatus[] = [
   "confirmed",
@@ -65,8 +66,7 @@ function minsLeft(endAt: string) {
 }
 
 export function AdminBoard() {
-  const [secret, setSecret] = useState("");
-  const [authed, setAuthed] = useState(false);
+  const { secret, headers } = useAdmin();
   const [board, setBoard] = useState<Booking[]>([]);
   const [stats, setStats] = useState<BoardStats | null>(null);
   const [day, setDay] = useState(todayLocal());
@@ -83,65 +83,42 @@ export function AdminBoard() {
   const searchRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const headers = useCallback(
-    (json = false): HeadersInit => ({
-      "x-admin-secret": secret,
-      ...(json ? { "Content-Type": "application/json" } : {}),
-    }),
-    [secret],
-  );
-
   const load = useCallback(
-    async (key: string, dayIso: string, silent = false) => {
+    async (dayIso: string, silent = false) => {
       if (!silent) setLoading(true);
       setError(null);
       try {
         const res = await fetch(`/api/admin/board?day=${dayIso}`, {
-          headers: { "x-admin-secret": key },
+          headers: { "x-admin-secret": secret },
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Unauthorized");
         setBoard(data.board || []);
         setStats(data.stats || null);
         setLastSync(data.serverTime || new Date().toISOString());
-        setAuthed(true);
-        document.cookie = `scw_admin=${key}; path=/; max-age=86400; SameSite=Lax`;
         setSelected((prev) => {
           if (!prev) return null;
           return (data.board as Booking[]).find((b) => b.id === prev.id) ?? prev;
         });
       } catch (e) {
-        if (!silent) {
-          setAuthed(false);
-          setError(e instanceof Error ? e.message : "Eroare");
-        }
+        if (!silent) setError(e instanceof Error ? e.message : "Eroare");
       } finally {
         if (!silent) setLoading(false);
       }
     },
-    [],
+    [secret],
   );
 
   useEffect(() => {
-    const match = document.cookie.match(/scw_admin=([^;]+)/);
-    if (match?.[1]) {
-      setSecret(decodeURIComponent(match[1]));
-      load(decodeURIComponent(match[1]), day);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    load(day);
+  }, [day, load]);
 
   useEffect(() => {
-    if (!authed) return;
-    load(secret, day, true);
-  }, [day]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!authed) return;
-    pollRef.current = setInterval(() => load(secret, day, true), 8000);
+    pollRef.current = setInterval(() => load(day, true), 8000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [authed, secret, day, load]);
+  }, [day, load]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -203,48 +180,12 @@ export function AdminBoard() {
         body: JSON.stringify({ id, ...body }),
       });
       if (!res.ok) throw new Error("Update failed");
-      await load(secret, day, true);
+      await load(day, true);
     } catch {
-      await load(secret, day, true);
+      await load(day, true);
     } finally {
       setBusyId(null);
     }
-  }
-
-  if (!authed) {
-    return (
-      <div className="mx-auto flex min-h-[70vh] max-w-md items-center">
-        <div className="glass w-full p-8">
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan">
-            Ops CRM
-          </p>
-          <h1 className="mt-2 font-[family-name:var(--font-display)] text-3xl font-bold text-white">
-            Smart Car Wash Admin
-          </h1>
-          <p className="mt-2 text-sm text-steel">
-            Board operațional · {business.lanes} linii · Buzești 34
-          </p>
-          <input
-            type="password"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && secret && load(secret, day)}
-            className="mt-8 w-full border border-white/15 bg-void px-4 py-3 text-white outline-none focus:border-cyan"
-            placeholder="ADMIN_SECRET"
-            autoFocus
-          />
-          {error && <p className="mt-3 text-sm text-red-300">{error}</p>}
-          <button
-            type="button"
-            className="btn-primary mt-4 w-full py-3 text-xs uppercase tracking-[0.16em]"
-            disabled={loading || !secret}
-            onClick={() => load(secret, day)}
-          >
-            {loading ? "Se conectează…" : "Intră în board"}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   const columns: BookingStatus[] = [
@@ -256,6 +197,14 @@ export function AdminBoard() {
 
   return (
     <div className="pb-10">
+      {error && (
+        <p className="mb-4 border border-red-400/30 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+          {error}
+        </p>
+      )}
+      {loading && !stats && (
+        <p className="mb-4 text-sm text-steel">Se încarcă board-ul…</p>
+      )}
       {/* Top bar */}
       <div className="sticky top-0 z-30 -mx-4 mb-6 border-b border-white/5 bg-void/90 px-4 py-4 backdrop-blur-xl md:-mx-0 md:px-0">
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -305,7 +254,7 @@ export function AdminBoard() {
             <button
               type="button"
               className="btn-ghost px-3 py-2 text-[10px] uppercase"
-              onClick={() => load(secret, day)}
+              onClick={() => load(day)}
             >
               Refresh
             </button>
@@ -538,7 +487,7 @@ export function AdminBoard() {
           onClose={() => setWalkInOpen(false)}
           onCreated={() => {
             setWalkInOpen(false);
-            load(secret, day, true);
+            load(day, true);
           }}
         />
       )}

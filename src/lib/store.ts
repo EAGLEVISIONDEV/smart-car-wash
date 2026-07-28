@@ -12,6 +12,7 @@ import {
   normalizePlate,
 } from "./plates";
 import { randomUUID } from "crypto";
+import { onBookingCompleted } from "./loyalty";
 
 let migrated = false;
 
@@ -49,6 +50,16 @@ async function ensureSchema() {
   await client.execute(
     `CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)`,
   );
+  try {
+    await client.execute(`ALTER TABLE bookings ADD COLUMN customer_id TEXT`);
+  } catch {
+    /* exists */
+  }
+  try {
+    await client.execute(`ALTER TABLE bookings ADD COLUMN bonus_id TEXT`);
+  } catch {
+    /* exists */
+  }
   migrated = true;
 }
 
@@ -222,9 +233,32 @@ export async function updateBookingStatus(
 ): Promise<Booking | null> {
   await ensureSchema();
   const db = getDb();
+  const before = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  if (!before[0]) return null;
+
   await db.update(bookings).set({ status }).where(eq(bookings.id, id));
   const rows = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
-  return rows[0] ? rowToBooking(rows[0]) : null;
+  const updated = rows[0] ? rowToBooking(rows[0]) : null;
+
+  // Loyalty: award on first transition to completed
+  if (
+    updated &&
+    status === "completed" &&
+    before[0].status !== "completed"
+  ) {
+    try {
+      await onBookingCompleted({
+        plate: updated.plateNormalized,
+        phone: updated.phone,
+        name: updated.name,
+        bookingId: updated.id,
+      });
+    } catch (e) {
+      console.error("loyalty award failed", e);
+    }
+  }
+
+  return updated;
 }
 
 const FLOW: BookingStatus[] = [
