@@ -6,6 +6,7 @@ import {
   createWalkIn,
   findByPlateOrCode,
   getBoardPayload,
+  getUpcomingBoardPayload,
   updateBookingStatus,
 } from "@/lib/store";
 import { isValidRoPlate } from "@/lib/plates";
@@ -16,13 +17,13 @@ export async function GET(req: Request) {
   if (!isAdminAuthorized(req)) return unauthorized();
   try {
     const url = new URL(req.url);
+    const mode = url.searchParams.get("mode") || "upcoming";
     const day = url.searchParams.get("day") || todayBusiness();
     const q = url.searchParams.get("q")?.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       return NextResponse.json({ error: "Zi invalidă" }, { status: 400 });
     }
 
-    // Global lookup by plate/code/phone — ignore day filter when searching
     if (q && q.length >= 3) {
       const results = await findByPlateOrCode(q);
       const stats = computeStats(results);
@@ -30,13 +31,16 @@ export async function GET(req: Request) {
         board: results,
         stats,
         day,
+        mode: "search",
         search: q,
         serverTime: new Date().toISOString(),
         businessDay: todayBusiness(),
       });
     }
 
-    const payload = await getBoardPayload(day);
+    const payload =
+      mode === "day" ? await getBoardPayload(day) : await getUpcomingBoardPayload(14);
+
     return NextResponse.json({
       ...payload,
       serverTime: new Date().toISOString(),

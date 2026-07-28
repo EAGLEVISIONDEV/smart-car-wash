@@ -4,6 +4,7 @@ import { packages } from "@/lib/data";
 import { isValidRoPlate } from "@/lib/plates";
 import { createBooking, getActiveForSlots } from "@/lib/store";
 import { generateSlotsForDay } from "@/lib/booking";
+import { businessDayOf } from "@/lib/time";
 
 const schema = z.object({
   plate: z.string().min(5),
@@ -35,12 +36,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Serviciu invalid" }, { status: 400 });
     }
 
-    const day = data.startAt.slice(0, 10);
+    const day = businessDayOf(data.startAt);
     const existing = await getActiveForSlots(day);
     const slots = generateSlotsForDay(day, existing, data.serviceId);
     if (!slots.includes(data.startAt) && !slots.some((s) => s === data.startAt)) {
-      // allow exact match after normalize
-      const ok = slots.some((s) => new Date(s).getTime() === new Date(data.startAt).getTime());
+      const ok = slots.some(
+        (s) => new Date(s).getTime() === new Date(data.startAt).getTime(),
+      );
       if (!ok) {
         return NextResponse.json(
           { error: "Intervalul nu mai este disponibil. Alege alt slot." },

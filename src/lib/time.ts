@@ -1,5 +1,5 @@
 import { TZDate } from "@date-fns/tz";
-import { format } from "date-fns";
+import { addDays, format } from "date-fns";
 
 /** Business timezone — always use this for days, hours, and board filters. */
 export const BUSINESS_TZ = "Europe/Bucharest";
@@ -11,6 +11,13 @@ export function nowInBusinessTz(): TZDate {
 /** Calendar date YYYY-MM-DD in Europe/Bucharest. */
 export function todayBusiness(): string {
   return format(nowInBusinessTz(), "yyyy-MM-dd");
+}
+
+/** Add calendar days to a YYYY-MM-DD business date. */
+export function addBusinessDays(dayIso: string, days: number): string {
+  const [y, m, d] = dayIso.slice(0, 10).split("-").map(Number);
+  const base = new TZDate(y, m - 1, d, 12, 0, 0, 0, BUSINESS_TZ);
+  return format(addDays(base, days), "yyyy-MM-dd");
 }
 
 /** Construct a wall-clock time in Bucharest, returned as UTC ISO. */
@@ -47,6 +54,11 @@ export function formatBusinessTime(iso: string): string {
 /** Format an instant as dd.MM.yyyy in Bucharest. */
 export function formatBusinessDay(iso: string): string {
   return format(new TZDate(parseISOSafe(iso), BUSINESS_TZ), "dd.MM.yyyy");
+}
+
+/** Format instant as "dd.MM · HH:mm" Bucharest. */
+export function formatBusinessDateTime(iso: string): string {
+  return format(new TZDate(parseISOSafe(iso), BUSINESS_TZ), "dd.MM · HH:mm");
 }
 
 /** Calendar YYYY-MM-DD of an instant in Bucharest. */

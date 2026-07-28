@@ -14,7 +14,7 @@ import {
 } from "./plates";
 import { randomUUID } from "crypto";
 import { onBookingCompleted } from "./loyalty";
-import { businessDayBounds, todayBusiness } from "./time";
+import { businessDayBounds, todayBusiness, addBusinessDays } from "./time";
 
 function rowToBooking(r: typeof bookings.$inferSelect): Booking {
   return {
@@ -71,6 +71,22 @@ export async function listBookingsForDay(dayIso: string): Promise<Booking[]> {
   return rows.map(rowToBooking);
 }
 
+export async function listBookingsRange(
+  fromDay: string,
+  toDay: string,
+): Promise<Booking[]> {
+  await ensureSchema();
+  const db = getDb();
+  const { from } = businessDayBounds(fromDay);
+  const { to } = businessDayBounds(toDay);
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(and(gte(bookings.startAt, from), lte(bookings.startAt, to)))
+    .orderBy(asc(bookings.startAt));
+  return rows.map(rowToBooking);
+}
+
 export async function listTodayBoard(): Promise<Booking[]> {
   return listBookingsForDay(todayBusiness());
 }
@@ -83,7 +99,30 @@ export async function getBoardPayload(dayIso: string) {
   );
   const slots = generateSlotsForDay(dayIso, active, "express");
   stats.nextSlot = slots[0] ?? null;
-  return { board, stats, day: dayIso.slice(0, 10) };
+  return { board, stats, day: dayIso.slice(0, 10), mode: "day" as const };
+}
+
+/** Today + next (horizonDays-1) business days — default admin view. */
+export async function getUpcomingBoardPayload(horizonDays = 14) {
+  const fromDay = todayBusiness();
+  const toDay = addBusinessDays(fromDay, horizonDays - 1);
+  const board = await listBookingsRange(fromDay, toDay);
+  const stats = computeStats(board);
+  const todayActive = board.filter(
+    (b) =>
+      !["cancelled", "no_show", "completed"].includes(b.status) &&
+      b.startAt >= businessDayBounds(fromDay).from &&
+      b.startAt <= businessDayBounds(fromDay).to,
+  );
+  const slots = generateSlotsForDay(fromDay, todayActive, "express");
+  stats.nextSlot = slots[0] ?? null;
+  return {
+    board,
+    stats,
+    day: fromDay,
+    toDay,
+    mode: "upcoming" as const,
+  };
 }
 
 export async function findByPlateOrCode(query: string): Promise<Booking[]> {

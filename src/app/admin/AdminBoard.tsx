@@ -6,7 +6,7 @@ import type { BoardStats } from "@/lib/booking";
 import { packages, type PackageId } from "@/lib/data";
 import { formatPlateDisplay, isValidRoPlate, normalizePlate } from "@/lib/plates";
 import { useAdmin } from "@/components/admin/AdminShell";
-import { todayBusiness, formatBusinessTime } from "@/lib/time";
+import { todayBusiness, formatBusinessTime, formatBusinessDateTime } from "@/lib/time";
 
 const FLOW: BookingStatus[] = [
   "confirmed",
@@ -45,9 +45,14 @@ const nextLabel: Partial<Record<BookingStatus, string>> = {
 };
 
 type ViewMode = "kanban" | "list";
+type RangeMode = "upcoming" | "day";
 
 function timeLabel(iso: string) {
   return formatBusinessTime(iso);
+}
+
+function dateTimeLabel(iso: string) {
+  return formatBusinessDateTime(iso);
 }
 
 function pkgName(id: string) {
@@ -63,6 +68,7 @@ export function AdminBoard() {
   const [board, setBoard] = useState<Booking[]>([]);
   const [stats, setStats] = useState<BoardStats | null>(null);
   const [day, setDay] = useState(todayBusiness());
+  const [rangeMode, setRangeMode] = useState<RangeMode>("upcoming");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -77,12 +83,17 @@ export function AdminBoard() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(
-    async (dayIso: string, silent = false, searchQ = "") => {
+    async (
+      dayIso: string,
+      silent = false,
+      searchQ = "",
+      mode: RangeMode = "upcoming",
+    ) => {
       if (!silent) setLoading(true);
       setError(null);
       try {
         const q = searchQ.trim();
-        const params = new URLSearchParams({ day: dayIso });
+        const params = new URLSearchParams({ day: dayIso, mode });
         if (q.length >= 3) params.set("q", q);
         const res = await fetch(`/api/admin/board?${params}`, {
           headers: { "x-admin-secret": secret },
@@ -106,24 +117,27 @@ export function AdminBoard() {
   );
 
   useEffect(() => {
-    load(day, false, query);
-  }, [day, load]); // eslint-disable-line react-hooks/exhaustive-deps -- query handled below
+    load(day, false, query, rangeMode);
+  }, [day, rangeMode, load]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const t = setTimeout(() => {
       if (query.trim().length >= 3 || query.trim().length === 0) {
-        load(day, true, query);
+        load(day, true, query, rangeMode);
       }
     }, 350);
     return () => clearTimeout(t);
-  }, [query, day, load]);
+  }, [query, day, rangeMode, load]);
 
   useEffect(() => {
-    pollRef.current = setInterval(() => load(day, true, query), 8000);
+    pollRef.current = setInterval(
+      () => load(day, true, query, rangeMode),
+      8000,
+    );
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [day, load, query]);
+  }, [day, load, query, rangeMode]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -185,9 +199,9 @@ export function AdminBoard() {
         body: JSON.stringify({ id, ...body }),
       });
       if (!res.ok) throw new Error("Update failed");
-      await load(day, true);
+      await load(day, true, query, rangeMode);
     } catch {
-      await load(day, true);
+      await load(day, true, query, rangeMode);
     } finally {
       setBusyId(null);
     }
@@ -225,20 +239,57 @@ export function AdminBoard() {
               {lastSync
                 ? new Date(lastSync).toLocaleTimeString("ro-RO")
                 : "—"}{" "}
-              · auto 8s · ⌘K search · ⌘N walk-in
+              ·{" "}
+              {rangeMode === "upcoming"
+                ? "următoarele 14 zile"
+                : `ziua ${day}`}{" "}
+              · ⌘K search · ⌘N walk-in
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex border border-white/15">
+              <button
+                type="button"
+                onClick={() => {
+                  setRangeMode("upcoming");
+                  setDay(todayBusiness());
+                }}
+                className={`px-3 py-2 text-[10px] uppercase tracking-wider ${
+                  rangeMode === "upcoming"
+                    ? "bg-cyan text-ink"
+                    : "text-steel hover:text-white"
+                }`}
+              >
+                14 zile
+              </button>
+              <button
+                type="button"
+                onClick={() => setRangeMode("day")}
+                className={`px-3 py-2 text-[10px] uppercase tracking-wider ${
+                  rangeMode === "day"
+                    ? "bg-cyan text-ink"
+                    : "text-steel hover:text-white"
+                }`}
+              >
+                Pe zi
+              </button>
+            </div>
             <input
               type="date"
               value={day}
-              onChange={(e) => setDay(e.target.value)}
+              onChange={(e) => {
+                setDay(e.target.value);
+                setRangeMode("day");
+              }}
               className="border border-white/15 bg-panel px-3 py-2 text-sm text-white"
             />
             <button
               type="button"
               className="btn-ghost px-3 py-2 text-[10px] uppercase tracking-wider"
-              onClick={() => setDay(todayBusiness())}
+              onClick={() => {
+                setDay(todayBusiness());
+                setRangeMode("day");
+              }}
             >
               Azi
             </button>
@@ -259,7 +310,7 @@ export function AdminBoard() {
             <button
               type="button"
               className="btn-ghost px-3 py-2 text-[10px] uppercase"
-              onClick={() => load(day)}
+              onClick={() => load(day, false, query, rangeMode)}
             >
               Refresh
             </button>
@@ -409,7 +460,7 @@ export function AdminBoard() {
                   key={b.id}
                   className="border-b border-white/5 hover:bg-white/[0.03]"
                 >
-                  <td className="px-4 py-3 text-white">{timeLabel(b.startAt)}</td>
+                  <td className="px-4 py-3 text-white">{dateTimeLabel(b.startAt)}</td>
                   <td className="px-4 py-3">
                     <button
                       type="button"
@@ -449,7 +500,9 @@ export function AdminBoard() {
             <p className="py-12 text-center text-sm text-steel">
               {query.trim().length >= 3
                 ? "Niciun rezultat pentru căutare"
-                : "Nicio programare în această zi — schimbă data sau caută numărul (ex. PH 77 COG)"}
+                : rangeMode === "upcoming"
+                  ? "Nicio programare în următoarele 14 zile"
+                  : "Nicio programare în această zi — apasă „14 zile” sau caută numărul"}
             </p>
           )}
         </div>
@@ -496,7 +549,7 @@ export function AdminBoard() {
           onClose={() => setWalkInOpen(false)}
           onCreated={() => {
             setWalkInOpen(false);
-            load(day, true);
+            load(day, true, query, rangeMode);
           }}
         />
       )}
@@ -548,7 +601,9 @@ function BookingCard({
           <p className="font-[family-name:var(--font-display)] text-lg tracking-wider text-white">
             {b.plateDisplay}
           </p>
-          <span className="text-[10px] text-steel">{timeLabel(b.startAt)}</span>
+          <span className="shrink-0 text-[10px] font-medium text-cyan">
+            {dateTimeLabel(b.startAt)}
+          </span>
         </div>
         <p className="mt-1 text-[11px] text-steel">
           {pkgName(b.serviceId)}

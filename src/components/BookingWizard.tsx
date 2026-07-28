@@ -9,7 +9,7 @@ import { formatSlotLabel } from "@/lib/booking";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { BookingCalendar } from "@/components/BookingCalendar";
-import { todayBusiness } from "@/lib/time";
+import { todayBusiness, formatBusinessDateTime, formatBusinessDay } from "@/lib/time";
 
 type BookingResult = {
   code: string;
@@ -145,12 +145,14 @@ export function BookingWizard() {
         <p className="mt-6 font-[family-name:var(--font-display)] text-4xl tracking-widest text-cyan">
           {done.code}
         </p>
-        <p className="mt-4 text-sm text-steel">
-          {done.plateDisplay} ·{" "}
-          {new Date(done.startAt).toLocaleString("ro-RO", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}
+        <p className="mt-4 text-lg text-white">
+          {done.plateDisplay}
+        </p>
+        <p className="mt-2 text-sm text-cyan">
+          {formatBusinessDateTime(done.startAt)} · ora României
+        </p>
+        <p className="mt-1 text-xs text-steel">
+          Ziua pe board-ul admin: {formatBusinessDay(done.startAt)}
         </p>
         <p className="mt-2 text-sm text-steel">
           Pachet: {packages.find((p) => p.id === done.serviceId)?.name}
