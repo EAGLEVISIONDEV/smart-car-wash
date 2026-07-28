@@ -94,17 +94,20 @@ export async function findByPlateOrCode(query: string): Promise<Booking[]> {
   const rows = await db
     .select()
     .from(bookings)
-    .where(
-      or(
-        eq(bookings.plateNormalized, plate),
-        eq(bookings.code, q),
-        like(bookings.plateDisplay, `%${q}%`),
-        like(bookings.phone, `%${q}%`),
-      ),
-    )
     .orderBy(desc(bookings.startAt))
-    .limit(30);
-  return rows.map(rowToBooking);
+    .limit(80);
+
+  return rows
+    .filter((b) => {
+      if (b.code === q || b.code.includes(q)) return true;
+      if (plate.length >= 3 && b.plateNormalized.includes(plate)) return true;
+      if (b.plateDisplay.toUpperCase().includes(q)) return true;
+      if (b.phone.includes(q.replace(/\s+/g, ""))) return true;
+      if ((b.name || "").toUpperCase().includes(q)) return true;
+      return false;
+    })
+    .slice(0, 30)
+    .map(rowToBooking);
 }
 
 export async function createBooking(input: {
