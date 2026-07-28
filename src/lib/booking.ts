@@ -27,6 +27,21 @@ export type Booking = {
   createdAt: string;
 };
 
+export type BoardStats = {
+  total: number;
+  confirmed: number;
+  checked_in: number;
+  washing: number;
+  ready: number;
+  completed: number;
+  cancelled: number;
+  no_show: number;
+  activeLanes: number;
+  laneCapacity: number;
+  utilizationPct: number;
+  nextSlot: string | null;
+};
+
 export function serviceDuration(id: PackageId): number {
   return packages.find((p) => p.id === id)?.durationMin ?? business.slotMinutes;
 }
