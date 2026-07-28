@@ -186,30 +186,85 @@ export const faqs = [
   },
 ] as const;
 
-const u = (id: string, w = 2400) =>
-  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=90&fm=jpg`;
+const u = (id: string, w = 3840) =>
+  `https://images.unsplash.com/${id}?auto=format&fit=crop&w=${w}&q=100&fm=jpg`;
 
 export const images = {
-  hero: u("photo-1607860108855-64acf2078ed9", 2800),
-  foam: u("photo-1558618666-fcd25c85f82e", 2400),
-  shine: u("photo-1618843479313-40f8afb4b4d8", 2400),
-  wet: u("photo-1492144534655-ae79c964c9d7", 2400),
-  detail: u("photo-1503376780353-7e6692767b70", 2400),
-  interior: u("photo-1485291571150-772bcfc10da5", 2400),
-  wash: u("photo-1601362840469-51e4d8d58785", 2400),
-  night: u("photo-1494976388531-d1058494cdd8", 2400),
-  clean: u("photo-1549317661-bd32c8ce0db2", 2400),
-  spray: u("photo-1617531653332-bd46c24f2068", 2400),
-  garage: u("photo-1486006920555-c77dcf18193c", 2400),
+  hero: u("photo-1607860108855-64acf2078ed9", 3840),
+  foam: u("photo-1609521263047-f8f205293f24", 3840),
+  shine: u("photo-1618843479313-40f8afb4b4d8", 3840),
+  wet: u("photo-1492144534655-ae79c964c9d7", 3840),
+  detail: u("photo-1503376780353-7e6692767b70", 3840),
+  interior: u("photo-1485291571150-772bcfc10da5", 3840),
+  wash: u("photo-1601362840469-51e4d8d58785", 3840),
+  night: u("photo-1494976388531-d1058494cdd8", 3840),
+  clean: u("photo-1549317661-bd32c8ce0db2", 3840),
+  spray: u("photo-1617531653332-bd46c24f2068", 3840),
+  garage: u("photo-1486006920555-c77dcf18193c", 3840),
+  red: u("photo-1544636331-e26879cd4d9b", 3840),
+  ferrari: u("photo-1583121274602-3e2820c69888", 3840),
+  road: u("photo-1449965408869-eaa3f722e40d", 3840),
 } as const;
 
 export const gallery = [
-  { src: images.foam, alt: "Spumă activă pe caroserie", span: "lg:col-span-2 lg:row-span-2" },
-  { src: images.shine, alt: "Finisaj lucios după spălare", span: "" },
-  { src: images.wet, alt: "Detaliu caroserie udă", span: "" },
-  { src: images.detail, alt: "Mașină premium ready", span: "lg:col-span-2" },
-  { src: images.interior, alt: "Interior curat", span: "" },
-  { src: images.wash, alt: "Proces de spălare", span: "" },
-  { src: images.spray, alt: "Curățare cu presiune", span: "" },
-  { src: images.night, alt: "Mașină pe asfalt umed", span: "lg:col-span-2" },
+  {
+    src: images.foam,
+    alt: "Spălare auto profesională",
+    span: "lg:col-span-2 lg:row-span-2",
+    sizes: "(max-width:768px) 100vw, (max-width:1024px) 66vw, 50vw",
+  },
+  {
+    src: images.shine,
+    alt: "Finisaj lucios după spălare",
+    span: "",
+    sizes: "(max-width:768px) 50vw, 25vw",
+  },
+  {
+    src: images.wet,
+    alt: "Detaliu caroserie udă",
+    span: "",
+    sizes: "(max-width:768px) 50vw, 25vw",
+  },
+  {
+    src: images.detail,
+    alt: "Mașină premium ready",
+    span: "lg:col-span-2",
+    sizes: "(max-width:768px) 100vw, (max-width:1024px) 66vw, 50vw",
+  },
+  {
+    src: images.interior,
+    alt: "Interior curat",
+    span: "",
+    sizes: "(max-width:768px) 50vw, 25vw",
+  },
+  {
+    src: images.wash,
+    alt: "Proces de spălare",
+    span: "",
+    sizes: "(max-width:768px) 50vw, 25vw",
+  },
+  {
+    src: images.spray,
+    alt: "Curățare cu presiune",
+    span: "",
+    sizes: "(max-width:768px) 50vw, 25vw",
+  },
+  {
+    src: images.night,
+    alt: "Mașină pe asfalt umed",
+    span: "lg:col-span-2",
+    sizes: "(max-width:768px) 100vw, (max-width:1024px) 66vw, 50vw",
+  },
+  {
+    src: images.red,
+    alt: "Mașină sport după detailing",
+    span: "",
+    sizes: "(max-width:768px) 50vw, 25vw",
+  },
+  {
+    src: images.ferrari,
+    alt: "Finisaj showroom",
+    span: "lg:col-span-2",
+    sizes: "(max-width:768px) 100vw, 50vw",
+  },
 ] as const;

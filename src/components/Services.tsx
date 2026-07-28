@@ -39,9 +39,9 @@ export function Services() {
                   src={images[pkg.imageKey]}
                   alt={pkg.name}
                   fill
-                  quality={85}
+                  quality={100}
                   sizes="(max-width:1024px) 100vw, 33vw"
-                  className="object-cover"
+                  className="object-cover object-center"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-void/90 to-transparent" />
                 {pkg.accent && (

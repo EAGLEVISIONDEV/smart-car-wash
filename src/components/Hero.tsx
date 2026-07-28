@@ -13,9 +13,9 @@ export function Hero() {
         alt=""
         fill
         priority
-        quality={95}
+        quality={100}
         sizes="100vw"
-        className="object-cover"
+        className="object-cover object-center"
         aria-hidden
       />
       <div className="absolute inset-0 bg-gradient-to-r from-void via-void/85 to-void/40" />

@@ -33,9 +33,9 @@ export function Gallery() {
                 src={item.src}
                 alt={item.alt}
                 fill
-                quality={85}
-                sizes="(max-width:768px) 50vw, 25vw"
-                className="object-cover transition duration-700 hover:scale-105"
+                quality={100}
+                sizes={item.sizes}
+                className="object-cover object-center transition duration-700 hover:scale-105"
               />
               <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-void/50 via-transparent to-transparent opacity-60" />
             </motion.div>

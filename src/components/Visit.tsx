@@ -94,9 +94,9 @@ export function Visit() {
                 src={images.garage}
                 alt="Spațiu spălătorie"
                 fill
-                quality={85}
+                quality={100}
                 sizes="(max-width:1024px) 100vw, 50vw"
-                className="object-cover"
+                className="object-cover object-center"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-void/70 to-transparent" />
             </div>
