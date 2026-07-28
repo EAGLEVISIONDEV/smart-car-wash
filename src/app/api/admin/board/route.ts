@@ -2,30 +2,45 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   advanceBookingStatus,
+  computeStats,
   createWalkIn,
+  findByPlateOrCode,
   getBoardPayload,
   updateBookingStatus,
 } from "@/lib/store";
 import { isValidRoPlate } from "@/lib/plates";
 import { isAdminAuthorized, unauthorized } from "@/lib/admin-auth";
-
-function todayLocal() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-}
+import { todayBusiness } from "@/lib/time";
 
 export async function GET(req: Request) {
   if (!isAdminAuthorized(req)) return unauthorized();
   try {
-    const day =
-      new URL(req.url).searchParams.get("day") || todayLocal();
+    const url = new URL(req.url);
+    const day = url.searchParams.get("day") || todayBusiness();
+    const q = url.searchParams.get("q")?.trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) {
       return NextResponse.json({ error: "Zi invalidă" }, { status: 400 });
     }
+
+    // Global lookup by plate/code/phone — ignore day filter when searching
+    if (q && q.length >= 3) {
+      const results = await findByPlateOrCode(q);
+      const stats = computeStats(results);
+      return NextResponse.json({
+        board: results,
+        stats,
+        day,
+        search: q,
+        serverTime: new Date().toISOString(),
+        businessDay: todayBusiness(),
+      });
+    }
+
     const payload = await getBoardPayload(day);
     return NextResponse.json({
       ...payload,
       serverTime: new Date().toISOString(),
+      businessDay: todayBusiness(),
     });
   } catch (e) {
     console.error(e);

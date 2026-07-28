@@ -1,5 +1,12 @@
 import { business, packages, type PackageId } from "./data";
-import { addMinutes, format, isBefore, parseISO, setHours, setMinutes } from "date-fns";
+import { addMinutes, isBefore } from "date-fns";
+import { TZDate } from "@date-fns/tz";
+import {
+  BUSINESS_TZ,
+  businessDayStart,
+  formatBusinessDay,
+  formatBusinessTime,
+} from "./time";
 
 export type BookingStatus =
   | "pending"
@@ -46,22 +53,36 @@ export function serviceDuration(id: PackageId): number {
   return packages.find((p) => p.id === id)?.durationMin ?? business.slotMinutes;
 }
 
-function localDayStart(dayIso: string): Date {
-  const [y, m, d] = dayIso.slice(0, 10).split("-").map(Number);
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
-}
-
 export function generateSlotsForDay(
   dayIso: string,
   existing: Booking[],
   serviceId: PackageId,
 ): string[] {
-  const day = localDayStart(dayIso);
   const duration = serviceDuration(serviceId);
   const slots: string[] = [];
-  let cursor = setMinutes(setHours(day, business.openHour), 0);
-  const close = setMinutes(setHours(day, business.closeHour), 0);
-  const now = new Date();
+  const [y, m, d] = dayIso.slice(0, 10).split("-").map(Number);
+
+  let cursor = new TZDate(
+    y,
+    m - 1,
+    d,
+    business.openHour,
+    0,
+    0,
+    0,
+    BUSINESS_TZ,
+  );
+  const close = new TZDate(
+    y,
+    m - 1,
+    d,
+    business.closeHour,
+    0,
+    0,
+    0,
+    BUSINESS_TZ,
+  );
+  const now = Date.now();
 
   while (
     isBefore(addMinutes(cursor, duration), close) ||
@@ -71,28 +92,30 @@ export function generateSlotsForDay(
     const end = addMinutes(start, duration);
     if (+end > +close) break;
 
-    if (start.getTime() >= now.getTime() - 30_000) {
+    if (start.getTime() >= now - 30_000) {
       const overlapCount = existing.filter((b) => {
         if (["cancelled", "no_show", "completed"].includes(b.status)) return false;
-        const bs = parseISO(b.startAt);
-        const be = parseISO(b.endAt);
-        return bs < end && be > start;
+        const bs = new Date(b.startAt).getTime();
+        const be = new Date(b.endAt).getTime();
+        return bs < end.getTime() && be > start.getTime();
       }).length;
 
       if (overlapCount < business.lanes) {
-        slots.push(start.toISOString());
+        slots.push(new Date(start.getTime()).toISOString());
       }
     }
 
-    cursor = addMinutes(cursor, business.slotMinutes);
+    cursor = addMinutes(cursor, business.slotMinutes) as TZDate;
   }
   return slots;
 }
 
 export function formatSlotLabel(iso: string): string {
-  return format(parseISO(iso), "HH:mm");
+  return formatBusinessTime(iso);
 }
 
 export function formatDayLabel(iso: string): string {
-  return format(parseISO(iso), "dd.MM.yyyy");
+  return formatBusinessDay(iso);
 }
+
+export { businessDayStart };

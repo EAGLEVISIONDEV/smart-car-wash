@@ -57,7 +57,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/board?day=" + new Date().toISOString().slice(0, 10), {
+      const res = await fetch("/api/admin/board?day=" + new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Bucharest" }), {
         headers: { "x-admin-secret": key },
       });
       if (!res.ok) throw new Error("Cheie invalidă");

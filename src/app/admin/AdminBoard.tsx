@@ -6,6 +6,7 @@ import type { BoardStats } from "@/lib/booking";
 import { packages, type PackageId } from "@/lib/data";
 import { formatPlateDisplay, isValidRoPlate, normalizePlate } from "@/lib/plates";
 import { useAdmin } from "@/components/admin/AdminShell";
+import { todayBusiness, formatBusinessTime } from "@/lib/time";
 
 const FLOW: BookingStatus[] = [
   "confirmed",
@@ -45,16 +46,8 @@ const nextLabel: Partial<Record<BookingStatus, string>> = {
 
 type ViewMode = "kanban" | "list";
 
-function todayLocal() {
-  const t = new Date();
-  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-}
-
 function timeLabel(iso: string) {
-  return new Date(iso).toLocaleTimeString("ro-RO", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatBusinessTime(iso);
 }
 
 function pkgName(id: string) {
@@ -69,7 +62,7 @@ export function AdminBoard() {
   const { secret, headers } = useAdmin();
   const [board, setBoard] = useState<Booking[]>([]);
   const [stats, setStats] = useState<BoardStats | null>(null);
-  const [day, setDay] = useState(todayLocal());
+  const [day, setDay] = useState(todayBusiness());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
@@ -84,11 +77,14 @@ export function AdminBoard() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(
-    async (dayIso: string, silent = false) => {
+    async (dayIso: string, silent = false, searchQ = "") => {
       if (!silent) setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/admin/board?day=${dayIso}`, {
+        const q = searchQ.trim();
+        const params = new URLSearchParams({ day: dayIso });
+        if (q.length >= 3) params.set("q", q);
+        const res = await fetch(`/api/admin/board?${params}`, {
           headers: { "x-admin-secret": secret },
         });
         const data = await res.json();
@@ -110,15 +106,24 @@ export function AdminBoard() {
   );
 
   useEffect(() => {
-    load(day);
-  }, [day, load]);
+    load(day, false, query);
+  }, [day, load]); // eslint-disable-line react-hooks/exhaustive-deps -- query handled below
 
   useEffect(() => {
-    pollRef.current = setInterval(() => load(day, true), 8000);
+    const t = setTimeout(() => {
+      if (query.trim().length >= 3 || query.trim().length === 0) {
+        load(day, true, query);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [query, day, load]);
+
+  useEffect(() => {
+    pollRef.current = setInterval(() => load(day, true, query), 8000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [day, load]);
+  }, [day, load, query]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -233,7 +238,7 @@ export function AdminBoard() {
             <button
               type="button"
               className="btn-ghost px-3 py-2 text-[10px] uppercase tracking-wider"
-              onClick={() => setDay(todayLocal())}
+              onClick={() => setDay(todayBusiness())}
             >
               Azi
             </button>
@@ -312,7 +317,7 @@ export function AdminBoard() {
             ref={searchRef}
             value={query}
             onChange={(e) => setQuery(e.target.value.toUpperCase())}
-            placeholder="Caută număr, cod, telefon…"
+            placeholder="Caută global: număr, cod, telefon…"
             className="min-w-[220px] flex-1 border border-white/15 bg-void px-4 py-2.5 text-sm tracking-wide text-white outline-none focus:border-cyan"
           />
           <select
@@ -441,7 +446,11 @@ export function AdminBoard() {
             </tbody>
           </table>
           {filtered.length === 0 && (
-            <p className="py-12 text-center text-sm text-steel">Niciun rezultat</p>
+            <p className="py-12 text-center text-sm text-steel">
+              {query.trim().length >= 3
+                ? "Niciun rezultat pentru căutare"
+                : "Nicio programare în această zi — schimbă data sau caută numărul (ex. PH 77 COG)"}
+            </p>
           )}
         </div>
       )}

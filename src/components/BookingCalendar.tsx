@@ -18,6 +18,7 @@ import {
   subMonths,
 } from "date-fns";
 import { ro } from "date-fns/locale";
+import { todayBusiness } from "@/lib/time";
 
 const WEEKDAYS = ["Lu", "Ma", "Mi", "Jo", "Vi", "Sâ", "Du"];
 
@@ -33,7 +34,14 @@ export function BookingCalendar({
   onChange,
   horizonDays = 14,
 }: Props) {
-  const today = startOfDay(new Date());
+  const todayIso = todayBusiness();
+  const today = startOfDay(
+    new Date(
+      +todayIso.slice(0, 4),
+      +todayIso.slice(5, 7) - 1,
+      +todayIso.slice(8, 10),
+    ),
+  );
   const maxDate = addDays(today, horizonDays - 1);
   const selected = startOfDay(
     new Date(+value.slice(0, 4), +value.slice(5, 7) - 1, +value.slice(8, 10)),

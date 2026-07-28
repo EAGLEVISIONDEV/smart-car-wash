@@ -14,6 +14,7 @@ import {
 } from "./plates";
 import { randomUUID } from "crypto";
 import { onBookingCompleted } from "./loyalty";
+import { businessDayBounds, todayBusiness } from "./time";
 
 function rowToBooking(r: typeof bookings.$inferSelect): Booking {
   return {
@@ -31,13 +32,6 @@ function rowToBooking(r: typeof bookings.$inferSelect): Booking {
     source: r.source as Booking["source"],
     createdAt: r.createdAt,
   };
-}
-
-function dayBounds(dayIso: string) {
-  const [y, m, d] = dayIso.slice(0, 10).split("-").map(Number);
-  const from = new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
-  const to = new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
-  return { from, to };
 }
 
 export function computeStats(board: Booking[]): BoardStats {
@@ -68,7 +62,7 @@ export function computeStats(board: Booking[]): BoardStats {
 export async function listBookingsForDay(dayIso: string): Promise<Booking[]> {
   await ensureSchema();
   const db = getDb();
-  const { from, to } = dayBounds(dayIso);
+  const { from, to } = businessDayBounds(dayIso);
   const rows = await db
     .select()
     .from(bookings)
@@ -78,9 +72,7 @@ export async function listBookingsForDay(dayIso: string): Promise<Booking[]> {
 }
 
 export async function listTodayBoard(): Promise<Booking[]> {
-  const today = new Date();
-  const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  return listBookingsForDay(day);
+  return listBookingsForDay(todayBusiness());
 }
 
 export async function getBoardPayload(dayIso: string) {
@@ -161,8 +153,7 @@ export async function createWalkIn(input: {
   notes?: string;
   startNow?: boolean;
 }): Promise<Booking> {
-  const today = new Date();
-  const day = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const day = todayBusiness();
   const existing = await getActiveForSlots(day);
   const slots = generateSlotsForDay(day, existing, input.serviceId);
   const startAt =

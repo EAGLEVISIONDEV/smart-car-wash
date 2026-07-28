@@ -9,6 +9,7 @@ import { formatSlotLabel } from "@/lib/booking";
 import { format } from "date-fns";
 import { ro } from "date-fns/locale";
 import { BookingCalendar } from "@/components/BookingCalendar";
+import { todayBusiness } from "@/lib/time";
 
 type BookingResult = {
   code: string;
@@ -42,7 +43,7 @@ export function BookingWizard() {
   const [serviceId, setServiceId] = useState<PackageId>(
     packages.some((p) => p.id === initialService) ? initialService : "complet",
   );
-  const [day, setDay] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [day, setDay] = useState(todayBusiness());
   const [slots, setSlots] = useState<string[]>([]);
   const [startAt, setStartAt] = useState<string | null>(null);
   const [plate, setPlate] = useState("");
