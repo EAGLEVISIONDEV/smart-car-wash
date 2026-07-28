@@ -1,7 +1,13 @@
 import { Header } from "@/components/Header";
 import { Hero } from "@/components/Hero";
+import { TrustBar } from "@/components/TrustBar";
 import { Services } from "@/components/Services";
+import { WhyUs } from "@/components/WhyUs";
+import { Gallery } from "@/components/Gallery";
+import { Reviews } from "@/components/Reviews";
 import { Process } from "@/components/Process";
+import { MidCta } from "@/components/MidCta";
+import { Faq } from "@/components/Faq";
 import { Visit } from "@/components/Visit";
 import { Footer } from "@/components/Footer";
 import { StickyCta } from "@/components/StickyCta";
@@ -14,9 +20,14 @@ export default function Home() {
       <Header />
       <main>
         <Hero />
+        <TrustBar />
         <Services />
+        <WhyUs />
+        <Gallery />
+        <Reviews />
         <Process />
-        <section className="border-y border-white/5 py-20">
+        <MidCta />
+        <section className="border-y border-white/5 bg-panel/20 py-20">
           <div className="section-pad mx-auto max-w-3xl text-center">
             <p className="text-[11px] font-semibold uppercase tracking-[0.35em] text-cyan">
               Status live
@@ -25,7 +36,8 @@ export default function Home() {
               Verifică după numărul de înmatriculare
             </h2>
             <p className="mx-auto mt-4 max-w-md text-sm text-steel">
-              Introduci numărul sau codul de rezervare și vezi dacă mașina e în lucru sau gata de ridicare.
+              Introduci numărul sau codul de rezervare și vezi dacă mașina e în
+              lucru sau gata de ridicare.
             </p>
             <Link
               href="/status"
@@ -38,6 +50,7 @@ export default function Home() {
             </p>
           </div>
         </section>
+        <Faq />
         <Visit />
       </main>
       <Footer />

@@ -21,14 +21,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://smart-car-wash.vercel.app"),
+  metadataBase: new URL("https://smart-car-wash-theta.vercel.app"),
   title: "Smart Car Wash — Programări & Spălătorie Auto | Buzești, București",
   description:
-    "Programează online spălarea auto cu numărul de înmatriculare. Strada Buzești 34, București. Zilnic 08:00–20:00. Tel. +40 742 399 889.",
+    "Spălătorie auto pe Strada Buzești 34, București. Rating Google 4.5 (557+). Programează online cu numărul de înmatriculare. Zilnic 08:00–20:00.",
   openGraph: {
-    title: "Smart Car Wash — Programări inteligente",
+    title: "Smart Car Wash — Spălare inteligentă pe Buzești",
     description:
-      "Spălătorie auto pe Buzești 34. Booking online pe număr de înmatriculare.",
+      "Express, Complet, Detail. Booking online pe număr. 8 linii · 4.5★ Google.",
     locale: "ro_RO",
     type: "website",
   },
@@ -37,9 +37,55 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "AutoWash",
+    name: "Smart Car Wash",
+    image: "https://smart-car-wash-theta.vercel.app",
+    telephone: "+40742399889",
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Strada Buzești 34",
+      addressLocality: "București",
+      postalCode: "011015",
+      addressCountry: "RO",
+    },
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: 44.4528,
+      longitude: 26.0855,
+    },
+    openingHoursSpecification: {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+      ],
+      opens: "08:00",
+      closes: "20:00",
+    },
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: "4.5",
+      reviewCount: "557",
+    },
+    url: "https://smart-car-wash-theta.vercel.app",
+  };
+
   return (
     <html lang="ro" className={`${display.variable} ${body.variable} h-full`}>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

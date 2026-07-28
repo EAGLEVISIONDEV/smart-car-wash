@@ -6,6 +6,8 @@ import { business } from "@/lib/data";
 
 const links = [
   { href: "/#servicii", label: "Servicii" },
+  { href: "/#galerie", label: "Galerie" },
+  { href: "/#recenzii", label: "Recenzii" },
   { href: "/programare", label: "Programare" },
   { href: "/status", label: "Status" },
   { href: "/#vizita", label: "Vizită" },
