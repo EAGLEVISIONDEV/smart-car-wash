@@ -1,30 +1,53 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import postgres from "postgres";
+import { drizzle } from "drizzle-orm/postgres-js";
 import * as schema from "./schema";
-import { mkdirSync } from "fs";
-import { dirname } from "path";
 
-function getUrl() {
-  if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL;
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  // Vercel serverless: writable /tmp only
-  if (process.env.VERCEL) return "file:/tmp/smart-car-wash.db";
-  return "file:./data/smart.db";
+type Sql = ReturnType<typeof postgres>;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __scw_sql: Sql | undefined;
+  // eslint-disable-next-line no-var
+  var __scw_db: ReturnType<typeof drizzle<typeof schema>> | undefined;
+}
+
+function getConnectionString() {
+  const url =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.SUPABASE_DB_URL;
+  if (!url) {
+    throw new Error(
+      "Missing DATABASE_URL / POSTGRES_URL. Connect Supabase and set the Postgres connection string.",
+    );
+  }
+  return url;
+}
+
+function getSql(): Sql {
+  if (globalThis.__scw_sql) return globalThis.__scw_sql;
+  // prepare:false required for Supabase transaction pooler (pgbouncer)
+  const sql = postgres(getConnectionString(), {
+    prepare: false,
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    onnotice: () => {},
+  });
+  globalThis.__scw_sql = sql;
+  return sql;
 }
 
 export function getDb() {
-  const url = getUrl();
-  if (url.startsWith("file:")) {
-    const path = url.replace("file:", "");
-    try {
-      mkdirSync(dirname(path), { recursive: true });
-    } catch {
-      /* ignore */
-    }
-  }
-  const authToken = process.env.TURSO_AUTH_TOKEN;
-  const client = createClient(authToken ? { url, authToken } : { url });
-  return drizzle(client, { schema });
+  if (globalThis.__scw_db) return globalThis.__scw_db;
+  const db = drizzle(getSql(), { schema });
+  globalThis.__scw_db = db;
+  return db;
+}
+
+export function getSqlClient() {
+  return getSql();
 }
 
 export type Db = ReturnType<typeof getDb>;

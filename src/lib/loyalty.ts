@@ -1,5 +1,6 @@
 import { eq, and, desc } from "drizzle-orm";
 import { getDb } from "./db";
+import { ensureSchema } from "./migrate";
 import { customers, bonuses, loyaltySettings, bookings } from "./schema";
 import type {
   Bonus,
@@ -10,102 +11,8 @@ import type {
   CustomerProfile,
   LoyaltySettings,
 } from "./loyalty-types";
-import {
-  formatPlateDisplay,
-  normalizePlate,
-} from "./plates";
+import { formatPlateDisplay, normalizePlate } from "./plates";
 import { randomUUID } from "crypto";
-
-let loyaltyMigrated = false;
-
-export async function ensureLoyaltySchema() {
-  if (loyaltyMigrated) return;
-  const db = getDb();
-  const client = (
-    db as unknown as { $client: { execute: (s: string) => Promise<unknown> } }
-  ).$client;
-
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS customers (
-      id TEXT PRIMARY KEY,
-      phone TEXT NOT NULL,
-      name TEXT,
-      plate_normalized TEXT NOT NULL,
-      plate_display TEXT NOT NULL,
-      visits_completed INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  `);
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS bonuses (
-      id TEXT PRIMARY KEY,
-      customer_id TEXT NOT NULL,
-      type TEXT NOT NULL,
-      service_id TEXT,
-      label TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'available',
-      source TEXT NOT NULL DEFAULT 'manual',
-      notes TEXT,
-      expires_at TEXT,
-      redeemed_at TEXT,
-      redeemed_booking_id TEXT,
-      created_at TEXT NOT NULL
-    )
-  `);
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS loyalty_settings (
-      id TEXT PRIMARY KEY,
-      visits_required INTEGER NOT NULL DEFAULT 5,
-      reward_type TEXT NOT NULL DEFAULT 'free_wash',
-      reward_service_id TEXT DEFAULT 'express',
-      reward_label TEXT NOT NULL DEFAULT 'Spălare Express gratuită',
-      enabled INTEGER NOT NULL DEFAULT 1,
-      updated_at TEXT NOT NULL
-    )
-  `);
-  // best-effort columns on bookings
-  try {
-    await client.execute(`ALTER TABLE bookings ADD COLUMN customer_id TEXT`);
-  } catch { /* exists */ }
-  try {
-    await client.execute(`ALTER TABLE bookings ADD COLUMN bonus_id TEXT`);
-  } catch { /* exists */ }
-
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_customers_plate ON customers(plate_normalized)`,
-  );
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`,
-  );
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_bonuses_customer ON bonuses(customer_id)`,
-  );
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_bonuses_status ON bonuses(status)`,
-  );
-
-  // seed default loyalty settings
-  const existing = await db
-    .select()
-    .from(loyaltySettings)
-    .where(eq(loyaltySettings.id, "default"))
-    .limit(1);
-  if (!existing[0]) {
-    const now = new Date().toISOString();
-    await db.insert(loyaltySettings).values({
-      id: "default",
-      visitsRequired: 5,
-      rewardType: "free_wash",
-      rewardServiceId: "express",
-      rewardLabel: "Spălare Express gratuită",
-      enabled: 1,
-      updatedAt: now,
-    });
-  }
-
-  loyaltyMigrated = true;
-}
 
 function rowCustomer(r: typeof customers.$inferSelect): Customer {
   return {
@@ -144,13 +51,13 @@ function rowLoyalty(r: typeof loyaltySettings.$inferSelect): LoyaltySettings {
     rewardType: r.rewardType as BonusType,
     rewardServiceId: r.rewardServiceId,
     rewardLabel: r.rewardLabel,
-    enabled: r.enabled === 1,
+    enabled: Boolean(r.enabled),
     updatedAt: r.updatedAt,
   };
 }
 
 export async function getLoyaltySettings(): Promise<LoyaltySettings> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   const rows = await db
     .select()
@@ -167,7 +74,7 @@ export async function updateLoyaltySettings(input: {
   rewardLabel: string;
   enabled: boolean;
 }): Promise<LoyaltySettings> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   const now = new Date().toISOString();
   await db
@@ -177,7 +84,7 @@ export async function updateLoyaltySettings(input: {
       rewardType: input.rewardType,
       rewardServiceId: input.rewardServiceId,
       rewardLabel: input.rewardLabel,
-      enabled: input.enabled ? 1 : 0,
+      enabled: input.enabled,
       updatedAt: now,
     })
     .where(eq(loyaltySettings.id, "default"));
@@ -189,7 +96,7 @@ export async function upsertCustomer(input: {
   phone: string;
   name?: string | null;
 }): Promise<Customer> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   const plateNormalized = normalizePlate(input.plate);
   const phone = input.phone.replace(/\s+/g, "");
@@ -219,7 +126,7 @@ export async function upsertCustomer(input: {
     return rowCustomer(updated[0]!);
   }
 
-  const customer: typeof customers.$inferInsert = {
+  const customer = {
     id: randomUUID(),
     phone,
     name: input.name?.trim() || null,
@@ -230,11 +137,11 @@ export async function upsertCustomer(input: {
     updatedAt: now,
   };
   await db.insert(customers).values(customer);
-  return rowCustomer(customer as typeof customers.$inferSelect);
+  return rowCustomer(customer);
 }
 
 export async function listCustomers(query?: string): Promise<CustomerProfile[]> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   let rows = await db.select().from(customers).orderBy(desc(customers.updatedAt));
 
@@ -251,7 +158,7 @@ export async function listCustomers(query?: string): Promise<CustomerProfile[]> 
   }
 
   const allBonuses = await db.select().from(bonuses);
-  const profiles: CustomerProfile[] = rows.map((c) => {
+  return rows.map((c) => {
     const custBonuses = allBonuses
       .filter((b) => b.customerId === c.id)
       .map(rowBonus);
@@ -262,16 +169,23 @@ export async function listCustomers(query?: string): Promise<CustomerProfile[]> 
       recentBookings: c.visitsCompleted,
     };
   });
-  return profiles;
 }
 
 export async function getCustomer(id: string): Promise<CustomerProfile | null> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
-  const rows = await db.select().from(customers).where(eq(customers.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(customers)
+    .where(eq(customers.id, id))
+    .limit(1);
   if (!rows[0]) return null;
   const custBonuses = (
-    await db.select().from(bonuses).where(eq(bonuses.customerId, id)).orderBy(desc(bonuses.createdAt))
+    await db
+      .select()
+      .from(bonuses)
+      .where(eq(bonuses.customerId, id))
+      .orderBy(desc(bonuses.createdAt))
   ).map(rowBonus);
   return {
     ...rowCustomer(rows[0]),
@@ -290,7 +204,7 @@ export async function grantBonus(input: {
   notes?: string;
   expiresAt?: string | null;
 }): Promise<Bonus> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   const now = new Date().toISOString();
   const bonus = {
@@ -308,14 +222,14 @@ export async function grantBonus(input: {
     createdAt: now,
   };
   await db.insert(bonuses).values(bonus);
-  return rowBonus(bonus as typeof bonuses.$inferSelect);
+  return rowBonus(bonus);
 }
 
 export async function listBonuses(filter?: {
   status?: BonusStatus;
   customerId?: string;
 }): Promise<(Bonus & { customer?: Customer })[]> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   let rows = await db.select().from(bonuses).orderBy(desc(bonuses.createdAt));
   if (filter?.status) rows = rows.filter((b) => b.status === filter.status);
@@ -335,9 +249,13 @@ export async function redeemBonus(
   bonusId: string,
   bookingId?: string,
 ): Promise<Bonus | null> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
-  const rows = await db.select().from(bonuses).where(eq(bonuses.id, bonusId)).limit(1);
+  const rows = await db
+    .select()
+    .from(bonuses)
+    .where(eq(bonuses.id, bonusId))
+    .limit(1);
   if (!rows[0] || rows[0].status !== "available") return null;
 
   if (rows[0].expiresAt && new Date(rows[0].expiresAt) < new Date()) {
@@ -358,23 +276,30 @@ export async function redeemBonus(
     })
     .where(eq(bonuses.id, bonusId));
 
-  const updated = await db.select().from(bonuses).where(eq(bonuses.id, bonusId)).limit(1);
+  const updated = await db
+    .select()
+    .from(bonuses)
+    .where(eq(bonuses.id, bonusId))
+    .limit(1);
   return updated[0] ? rowBonus(updated[0]) : null;
 }
 
 export async function cancelBonus(bonusId: string): Promise<Bonus | null> {
-  await ensureLoyaltySchema();
+  await ensureSchema();
   const db = getDb();
   await db
     .update(bonuses)
     .set({ status: "cancelled" })
     .where(and(eq(bonuses.id, bonusId), eq(bonuses.status, "available")));
-  const rows = await db.select().from(bonuses).where(eq(bonuses.id, bonusId)).limit(1);
+  const rows = await db
+    .select()
+    .from(bonuses)
+    .where(eq(bonuses.id, bonusId))
+    .limit(1);
   if (!rows[0] || rows[0].status !== "cancelled") return null;
   return rowBonus(rows[0]);
 }
 
-/** Called when a booking reaches completed — increments visits & may grant loyalty reward */
 export async function onBookingCompleted(input: {
   plate: string;
   phone: string;

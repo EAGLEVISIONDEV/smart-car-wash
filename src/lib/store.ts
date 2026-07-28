@@ -1,6 +1,7 @@
-import { eq, and, gte, lte, or, like, desc, asc, sql } from "drizzle-orm";
+import { eq, and, gte, lte, or, like, desc, asc } from "drizzle-orm";
 import { addMinutes, parseISO } from "date-fns";
 import { getDb } from "./db";
+import { ensureSchema } from "./migrate";
 import { bookings } from "./schema";
 import type { Booking, BookingStatus, BoardStats } from "./booking";
 import { generateSlotsForDay, serviceDuration } from "./booking";
@@ -13,55 +14,6 @@ import {
 } from "./plates";
 import { randomUUID } from "crypto";
 import { onBookingCompleted } from "./loyalty";
-
-let migrated = false;
-
-async function ensureSchema() {
-  if (migrated) return;
-  const db = getDb();
-  const client = (
-    db as unknown as {
-      $client: { execute: (sql: string) => Promise<unknown> };
-    }
-  ).$client;
-  await client.execute(`
-    CREATE TABLE IF NOT EXISTS bookings (
-      id TEXT PRIMARY KEY,
-      code TEXT NOT NULL UNIQUE,
-      plate_normalized TEXT NOT NULL,
-      plate_display TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      name TEXT,
-      service_id TEXT NOT NULL,
-      start_at TEXT NOT NULL,
-      end_at TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'confirmed',
-      notes TEXT,
-      source TEXT NOT NULL DEFAULT 'web',
-      created_at TEXT NOT NULL
-    )
-  `);
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_bookings_plate ON bookings(plate_normalized)`,
-  );
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_bookings_start ON bookings(start_at)`,
-  );
-  await client.execute(
-    `CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)`,
-  );
-  try {
-    await client.execute(`ALTER TABLE bookings ADD COLUMN customer_id TEXT`);
-  } catch {
-    /* exists */
-  }
-  try {
-    await client.execute(`ALTER TABLE bookings ADD COLUMN bonus_id TEXT`);
-  } catch {
-    /* exists */
-  }
-  migrated = true;
-}
 
 function rowToBooking(r: typeof bookings.$inferSelect): Booking {
   return {
@@ -201,7 +153,6 @@ export async function createBooking(input: {
   return booking;
 }
 
-/** Walk-in: next free slot today, optionally start as checked_in */
 export async function createWalkIn(input: {
   plate: string;
   phone: string;
@@ -233,19 +184,22 @@ export async function updateBookingStatus(
 ): Promise<Booking | null> {
   await ensureSchema();
   const db = getDb();
-  const before = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  const before = await db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, id))
+    .limit(1);
   if (!before[0]) return null;
 
   await db.update(bookings).set({ status }).where(eq(bookings.id, id));
-  const rows = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, id))
+    .limit(1);
   const updated = rows[0] ? rowToBooking(rows[0]) : null;
 
-  // Loyalty: award on first transition to completed
-  if (
-    updated &&
-    status === "completed" &&
-    before[0].status !== "completed"
-  ) {
+  if (updated && status === "completed" && before[0].status !== "completed") {
     try {
       await onBookingCompleted({
         plate: updated.plateNormalized,
@@ -274,7 +228,11 @@ export async function advanceBookingStatus(
 ): Promise<Booking | null> {
   await ensureSchema();
   const db = getDb();
-  const rows = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, id))
+    .limit(1);
   if (!rows[0]) return null;
   const current = rows[0].status as BookingStatus;
   const idx = FLOW.indexOf(current);
@@ -290,6 +248,10 @@ export async function getActiveForSlots(dayIso: string): Promise<Booking[]> {
 export async function getBookingById(id: string): Promise<Booking | null> {
   await ensureSchema();
   const db = getDb();
-  const rows = await db.select().from(bookings).where(eq(bookings.id, id)).limit(1);
+  const rows = await db
+    .select()
+    .from(bookings)
+    .where(eq(bookings.id, id))
+    .limit(1);
   return rows[0] ? rowToBooking(rows[0]) : null;
 }
