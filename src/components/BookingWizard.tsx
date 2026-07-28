@@ -6,7 +6,9 @@ import Link from "next/link";
 import { packages, type PackageId } from "@/lib/data";
 import { formatPlateDisplay, isValidRoPlate, normalizePlate } from "@/lib/plates";
 import { formatSlotLabel } from "@/lib/booking";
-import { addDays, format } from "date-fns";
+import { format } from "date-fns";
+import { ro } from "date-fns/locale";
+import { BookingCalendar } from "@/components/BookingCalendar";
 
 type BookingResult = {
   code: string;
@@ -14,6 +16,23 @@ type BookingResult = {
   startAt: string;
   serviceId: string;
 };
+
+function groupSlots(slots: string[]) {
+  const morning: string[] = [];
+  const afternoon: string[] = [];
+  const evening: string[] = [];
+  for (const s of slots) {
+    const h = new Date(s).getHours();
+    if (h < 12) morning.push(s);
+    else if (h < 17) afternoon.push(s);
+    else evening.push(s);
+  }
+  return [
+    { key: "dimineata", label: "Dimineață", slots: morning },
+    { key: "dupa-amiaza", label: "După-amiază", slots: afternoon },
+    { key: "seara", label: "Seară", slots: evening },
+  ].filter((g) => g.slots.length > 0);
+}
 
 export function BookingWizard() {
   const params = useSearchParams();
@@ -34,16 +53,13 @@ export function BookingWizard() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<BookingResult | null>(null);
 
-  const days = useMemo(
-    () =>
-      Array.from({ length: 14 }, (_, i) => {
-        const d = addDays(new Date(), i);
-        return format(d, "yyyy-MM-dd");
-      }),
-    [],
-  );
-
   const plateOk = plate.trim().length === 0 || isValidRoPlate(plate);
+  const slotGroups = useMemo(() => groupSlots(slots), [slots]);
+
+  const dayLabel = useMemo(() => {
+    const [y, m, d] = day.split("-").map(Number);
+    return format(new Date(y, m - 1, d), "EEEE, d MMMM", { locale: ro });
+  }, [day]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,48 +219,83 @@ export function BookingWizard() {
       )}
 
       {step === 2 && (
-        <div className="space-y-5">
-          <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-white">
-            2. Alege ziua și ora
-          </h2>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {days.map((d) => (
-              <button
-                key={d}
-                type="button"
-                onClick={() => setDay(d)}
-                className={`shrink-0 border px-3 py-2 text-xs ${
-                  day === d ? "border-cyan bg-cyan/10 text-white" : "border-white/10 text-steel"
-                }`}
-              >
-                {d.slice(5).replace("-", ".")}
-              </button>
-            ))}
+        <div className="space-y-6">
+          <div>
+            <h2 className="font-[family-name:var(--font-display)] text-2xl font-bold text-white">
+              2. Alege ziua și ora
+            </h2>
+            <p className="mt-2 text-sm text-steel">
+              Pachet{" "}
+              <span className="text-cyan">
+                {packages.find((p) => p.id === serviceId)?.name}
+              </span>{" "}
+              · calendar pe următoarele 14 zile
+            </p>
           </div>
-          {loading ? (
-            <p className="text-sm text-steel">Se încarcă intervalele…</p>
-          ) : slots.length === 0 ? (
-            <p className="text-sm text-steel">Niciun slot liber în această zi.</p>
-          ) : (
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-              {slots.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setStartAt(s)}
-                  className={`border py-2 text-sm ${
-                    startAt === s
-                      ? "border-cyan bg-cyan text-ink"
-                      : "border-white/10 text-white hover:border-cyan/40"
-                  }`}
-                >
-                  {formatSlotLabel(s)}
-                </button>
-              ))}
+
+          <BookingCalendar value={day} onChange={setDay} horizonDays={14} />
+
+          <div>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-cyan">
+                  Interval orar
+                </p>
+                <p className="mt-1 font-[family-name:var(--font-display)] text-lg capitalize text-white">
+                  {dayLabel}
+                </p>
+              </div>
+              {startAt && (
+                <p className="text-sm text-cyan">
+                  Selectat: {formatSlotLabel(startAt)}
+                </p>
+              )}
             </div>
-          )}
+
+            {loading ? (
+              <div className="flex items-center gap-3 border border-white/10 px-4 py-8 text-sm text-steel">
+                <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-cyan/30 border-t-cyan" />
+                Se încarcă intervalele…
+              </div>
+            ) : slots.length === 0 ? (
+              <p className="border border-white/10 px-4 py-8 text-sm text-steel">
+                Niciun slot liber în această zi. Alege altă dată.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {slotGroups.map((group) => (
+                  <div key={group.key}>
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-steel">
+                      {group.label}
+                    </p>
+                    <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {group.slots.map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => setStartAt(s)}
+                          className={`border py-2.5 text-sm font-medium transition ${
+                            startAt === s
+                              ? "border-cyan bg-cyan text-ink shadow-[0_0_20px_var(--cyan-glow)]"
+                              : "border-white/10 text-white hover:border-cyan/40 hover:bg-cyan/5"
+                          }`}
+                        >
+                          {formatSlotLabel(s)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-3">
-            <button type="button" className="btn-ghost flex-1 py-3 text-xs uppercase" onClick={() => setStep(1)}>
+            <button
+              type="button"
+              className="btn-ghost flex-1 py-3 text-xs uppercase"
+              onClick={() => setStep(1)}
+            >
               Înapoi
             </button>
             <button
@@ -315,7 +366,11 @@ export function BookingWizard() {
             </Link>
           </p>
           <div className="flex gap-3">
-            <button type="button" className="btn-ghost flex-1 py-3 text-xs uppercase" onClick={() => setStep(2)}>
+            <button
+              type="button"
+              className="btn-ghost flex-1 py-3 text-xs uppercase"
+              onClick={() => setStep(2)}
+            >
               Înapoi
             </button>
             <button
